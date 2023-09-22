@@ -4,7 +4,9 @@ sovereign cloud environment, or a partner's tenant.  You already have users in T
 but tenant B doesn't have the security configured (CA, MFA, PIM) that Tenant A has.  With this solution, you will
 be able to do a mass conversion of your Tenant B users to external guests to Tenant A.  This will allow you to log
 into Tenant B with Tenant A credentials.  This depends on having a mail attribute for the users in Tenant B being equal
-to the login email for Tenant A. 
+to the login email for Tenant A.
+
+This requires a csv file to fill in the hash table for the UPN and mail attributes.
 - 
 <!---
 cnstgrad/cnstgrad is a ✨ special ✨ repository because its `README.md` (this file) appears on your GitHub profile.
