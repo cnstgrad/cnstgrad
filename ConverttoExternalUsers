@@ -1,0 +1,84 @@
+#Requires -RunAsAdministrator
+#Requires -PSEdition Core
+#Requires -Version 7.3
+#requires -module microsoft.graph
+<#
+.Synopsis
+   Bulk conversion of Azure internal users to external guests.
+.DESCRIPTION
+   Azure Tenant A is the primary tenant for your organization.  Azure Tenant B is a dev environment, a
+sovereign cloud environment, or a partner's tenant.  You already have users in Tenant B which configured,
+but tenant B doesn't have the security configured (CA, MFA, PIM) that Tenant A has.  With this solution, you will
+be able to do a mass conversion of your Tenant B users to external guests to Tenant A.  This will allow you to log
+into Tenant B with Tenant A credentials.  This depends on having a mail attribute for the users in Tenant B being equal
+to the login email for Tenant A. 
+.EXAMPLE
+   .\kvptestscript.ps1 -environment usgov -tenantid 0000-000000-00000-00000 -userpath "C:\temp\userlist.csv"
+.INPUTS
+   The CSV file needs the headers of mail and upn.
+   Example:
+   mail,upn
+   "testuser@contoso.com","testuser@nwtraders.com"
+.OUTPUTS
+   Will convert all of the users on the userlist CSV to external guests.
+.NOTES
+   See https://learn.microsoft.com/en-us/powershell/microsoftgraph/authentication-commands?view=graph-powershell-1.0#using-get-mgenvironment
+   for list of environments.  Most common ones will be usgov and usgovdod.
+.FUNCTIONALITY
+   This script converts local cloud only users to external guests.
+#>
+
+#Parameter declarations.  These will be used when running the script
+[CmdletBinding()]
+param(
+  [Parameter(Mandatory=$true)]
+  #This is your tenant ID of the tenant where you will be converting the users
+  [String]$tenantID,
+
+  [Parameter(Mandatory=$true)]
+  #this is where your .csv file will be located.  For example c:\temp\userlist.csv
+  [String]$userpath,
+
+  [Parameter(Mandatory=$false)]
+  #The Environment parameter tells the script which Azure SKU to target with the tenant ID.  If using Azure Commercial, leave it blank.
+  [String]$environment
+
+)
+
+#region install Graph API Powershell Module
+write-host "Checking to see if you need to add the microsoft graph ps module.  Click yes to all if prompted." -ForegroundColor Yellow
+Install-Module -name microsoft.graph -ErrorAction SilentlyContinue -Verbose
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Verbose
+Import-Module -name microsoft.graph -ErrorAction SilentlyContinue -verbose
+#endregion
+#region Variables/initiate and populate hash table full of users
+$usermaillist = @{}
+Import-Csv -Path $userpath | Select-object -property upn,mail | ForEach-Object -Process {$usermaillist.Add($_.upn, $_.mail)}
+
+<#you need to have a list of the mapped UPN(tenant b)/email addresses(tenant a) your converting them too.  
+This hash table can contain as many of these pairings as needed.  This script uses a .csv file with the headings
+#>
+#endregion
+#region Connect to Graph API
+write-host "Attempting to connect to MS Graph API.  Be sure to log in with an account that has proper permissions" -ForegroundColor Yellow
+Connect-MgGraph -scope "user.readwrite.all" -Environment $environment -TenantId $tenantid 
+#endregion
+ 
+
+foreach ($user in $userMailList.GetEnumerator()) {
+$upn = $user.key
+$mail = $user.value
+
+$currentUser = Get-MgUser -filter "userprincipalName eq '$($upn)'" #you run through your list above and get each user to change the email address then invite the guest object
+$currentuser.id
+$currentuser
+$currentuser.gettype().fullname
+write-host "$upn = $mail"
+
+Update-MgUser -UserId $currentUser.id -mail $mail -ErrorAction SilentlyContinue -verbose #update the mail address from the list above #update the mail address from the list above
+Start-sleep -Seconds 30
+$currentuser.mail
+New-MgInvitation -InvitedUser $currentuser -InvitedUserEmailAddress $mail -SendInvitationMessage:$false -InviteRedirectUrl "Https://apps.microsoft.com" -verbose #invite guest
+
+   
+}
